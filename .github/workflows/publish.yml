@@ -32,11 +32,9 @@ jobs:
         run: corepack enable
       - run: pnpm install --frozen-lockfile
       - run: pnpm test
+      # Signs in to npm with this workflow's GitHub OIDC token (npm trusted publishing), so no
+      # npm token is stored. Each package names this repo and workflow as its trusted publisher.
       - name: Publish new versions
-        env:
-          # Only for the very first publish; afterwards npm trusted publishing (OIDC) is used
-          # and this secret is removed. See README.
-          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
         run: |
           for dir in packages/*/; do
             name=$(node -p "require('./${dir}package.json').name")
