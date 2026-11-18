@@ -1,0 +1,72 @@
+{
+  "name": "@soft-advisor/preview-access",
+  "version": "0.1.0",
+  "description": "Protect CloudFront-served sites (e.g. preview and staging environments) behind an OpenID Connect sign-in such as Amazon Cognito, without changing the app",
+  "license": "MIT",
+  "type": "module",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/soft-advisor/preview-access-utils.git",
+    "directory": "packages/preview-access"
+  },
+  "keywords": [
+    "cloudfront",
+    "cognito",
+    "oidc",
+    "pulumi",
+    "sst",
+    "preview",
+    "authentication"
+  ],
+  "engines": {
+    "node": ">=22.18"
+  },
+  "files": [
+    "dist",
+    "README.md"
+  ],
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "default": "./dist/index.js"
+    },
+    "./pulumi": {
+      "types": "./dist/pulumi.d.ts",
+      "default": "./dist/pulumi.js"
+    },
+    "./sst": {
+      "types": "./dist/sst.d.ts",
+      "default": "./dist/sst.js"
+    },
+    "./lambda": {
+      "types": "./dist/lambda.d.ts",
+      "default": "./dist/lambda.js"
+    }
+  },
+  "scripts": {
+    "generate": "node scripts/generate-lambda-code.ts",
+    "build": "node scripts/generate-lambda-code.ts && rm -rf dist && tsc -p tsconfig.build.json",
+    "typecheck": "node scripts/generate-lambda-code.ts && tsc --noEmit",
+    "test": "node scripts/generate-lambda-code.ts && node --test 'test/*.test.ts'",
+    "prepublishOnly": "pnpm build"
+  },
+  "peerDependencies": {
+    "@pulumi/aws": ">=6.57.0",
+    "@pulumi/pulumi": "^3.140.0"
+  },
+  "peerDependenciesMeta": {
+    "@pulumi/aws": {
+      "optional": true
+    },
+    "@pulumi/pulumi": {
+      "optional": true
+    }
+  },
+  "devDependencies": {
+    "@pulumi/aws": "6.83.4",
+    "@pulumi/pulumi": "3.274.0",
+    "@types/node": "22.20.5",
+    "esbuild": "0.28.2",
+    "typescript": "5.9.3"
+  }
+}

@@ -1,0 +1,6 @@
+packages:
+  - packages/*
+# Only install releases that have been public for a week
+minimumReleaseAge: 10080
+# The Pulumi SDK pulls in protobufjs, which has an install script it doesn't need here
+onlyBuiltDependencies: []

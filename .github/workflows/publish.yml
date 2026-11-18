@@ -1,0 +1,50 @@
+name: Publish
+
+# Publishes each package whose package.json version isn't on npm yet. Bump the version in a PR;
+# merging it publishes.
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+# Never publish twice at once
+concurrency:
+  group: publish
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+  id-token: write # npm provenance and trusted publishing
+
+jobs:
+  publish:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
+        with:
+          node-version: '24'
+          registry-url: https://registry.npmjs.org
+      - name: Activate the pinned package manager
+        run: corepack enable
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm test
+      - name: Publish new versions
+        env:
+          # Only for the very first publish; afterwards npm trusted publishing (OIDC) is used
+          # and this secret is removed. See README.
+          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
+        run: |
+          for dir in packages/*/; do
+            name=$(node -p "require('./${dir}package.json').name")
+            version=$(node -p "require('./${dir}package.json').version")
+            if npm view "$name@$version" version >/dev/null 2>&1; then
+              echo "$name@$version is already published"
+              continue
+            fi
+            echo "Publishing $name@$version"
+            (cd "$dir" && npm publish --provenance --access public)
+          done
