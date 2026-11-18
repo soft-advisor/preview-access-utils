@@ -41,7 +41,9 @@ test('other requests without a session get 401', async () => {
 test('expired, foreign-domain and tampered sessions are rejected', async () => {
   const expired = signSession(KEY, DOMAIN, 'user-1', Math.floor(Date.now() / 1000) - 1);
   const otherDomain = signSession(KEY, 'other.example.com', 'user-1', inOneHour());
-  const tampered = `${signSession(KEY, DOMAIN, 'user-1', inOneHour()).slice(0, -1)}0`;
+  const valid = signSession(KEY, DOMAIN, 'user-1', inOneHour());
+  const flippedLastCharacter = valid.endsWith('0') ? '1' : '0';
+  const tampered = `${valid.slice(0, -1)}${flippedLastCharacter}`;
   for (const value of [expired, otherDomain, tampered, 'garbage', '']) {
     const result = await runEdge({ cookies: sessionCookie(value) }, store);
     assert.equal(result.statusCode, 302, value);

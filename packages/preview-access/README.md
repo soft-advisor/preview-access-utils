@@ -31,10 +31,11 @@ For Amazon Cognito, users in a group named after the domain get in by default (t
 ### SST (`sst.aws.Nextjs` and other CloudFront site components)
 
 ```ts
-import { PreviewAccess } from '@soft-advisor/preview-access/pulumi';
-import { previewAccessSiteArgs } from '@soft-advisor/preview-access/sst';
+// Inside run(), importing the package there too, as SST recommends
+const { createPreviewAccess } = await import('@soft-advisor/preview-access/pulumi');
+const { previewAccessSiteArgs } = await import('@soft-advisor/preview-access/sst');
 
-const access = new PreviewAccess('Access', {
+const access = await createPreviewAccess('Access', {
   domain: 'dev.example.com',
   issuer: 'https://cognito-idp.eu-west-2.amazonaws.com/eu-west-2_abc123',
   clientId: '1example23456789',
@@ -55,7 +56,9 @@ The check runs first in SST's own viewer-request function, and SST stores its ro
 ### Pulumi, with your own CloudFront distribution
 
 ```ts
-const access = new PreviewAccess('Access', { domain, issuer, clientId });
+import { createPreviewAccess } from '@soft-advisor/preview-access/pulumi';
+
+const access = await createPreviewAccess('Access', { domain, issuer, clientId });
 
 const viewerRequest = new aws.cloudfront.Function('ViewerRequest', {
   runtime: 'cloudfront-js-2.0',
@@ -64,15 +67,17 @@ const viewerRequest = new aws.cloudfront.Function('ViewerRequest', {
   publish: true,
 });
 
-const distribution = new aws.cloudfront.Distribution('Site', {
-  origins: [appOrigin, access.origin],
-  orderedCacheBehaviors: [access.cacheBehavior],
+const distributionArgs: aws.cloudfront.DistributionArgs = {
+  origins: [appOrigin],
   defaultCacheBehavior: {
     // ...your app's behavior, plus:
     functionAssociations: [{ eventType: 'viewer-request', functionArn: viewerRequest.arn }],
   },
   // ...
-});
+};
+// Adds the sign-in origin and its cache behavior (or use access.origin and access.cacheBehavior)
+access.addSignInRoute(distributionArgs);
+const distribution = new aws.cloudfront.Distribution('Site', distributionArgs);
 access.allowDistribution(distribution.arn);
 ```
 
@@ -85,7 +90,7 @@ Associate the viewer-request function with every cache behavior except `access.c
 
 Store a random signing key (e.g. 32 random bytes, hex) in the KeyValueStore under `preview-access:signing-key`, and give the same value to the Lambda as `PREVIEW_ACCESS_SIGNING_KEY`. Serve the Lambda through a function URL with `AWS_IAM` auth and CloudFront origin access control.
 
-## `PreviewAccess` options
+## `createPreviewAccess` options
 
 | Option                                   | Default                              |                                               |
 | ---------------------------------------- | ------------------------------------ | --------------------------------------------- |
@@ -100,7 +105,7 @@ Store a random signing key (e.g. 32 random bytes, hex) in the KeyValueStore unde
 | `pathPrefix`                             | `/__access`                          | Must not be used by the app                   |
 | `cookieName`                             | `__Host-preview-access`              |                                               |
 
-`@pulumi/pulumi` and `@pulumi/aws` (6.57 or later) are optional peer dependencies: the component uses your project's copies, or SST's under SST.
+`@pulumi/pulumi` and `@pulumi/aws` (6.57 or later) are optional peer dependencies: the component uses your project's copies, or SST's under SST. They're loaded with dynamic imports when `createPreviewAccess` runs, never when the package is imported, so bundlers (e.g. SST's) can't hoist them to where they aren't installed yet.
 
 ## Rotating the signing key
 
