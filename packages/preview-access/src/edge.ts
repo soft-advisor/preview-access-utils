@@ -6,12 +6,14 @@ import { type EdgeOptions, edgeOptions, PREVIOUS_KEY_SUFFIX } from './options.ts
  * the key in the function's KeyValueStore. Without one, page loads go to the sign-in Lambda and
  * other requests get 401.
  *
- * The generated code avoids newer syntax (optional chaining, nullish coalescing) that the
- * CloudFront Functions runtime doesn't support.
+ * That runtime is ES 5.1 plus a few later features, so the generated code sticks to plain
+ * statements: no async closures (async arrow functions or IIFEs), no for...of, no optional
+ * chaining or nullish coalescing. test/edge-runtime.test.ts enforces this. Names are prefixed
+ * with __previewAccess so they can't clash with the host function's code.
  */
 
 /**
- * Code to inject at the top of an existing viewer-request handler, e.g. SST's
+ * Code to inject at the top of an existing async viewer-request handler, e.g. SST's
  * `edge.viewerRequest.injection`. It expects `event` and the `cf` module (`import cf from
  * "cloudfront"`) in scope, and returns a response when the request isn't allowed.
  */
@@ -26,56 +28,79 @@ export function viewerRequestInjection(options: Partial<EdgeOptions> & { domain:
 
   return `
 // @soft-advisor/preview-access: require a signed session cookie
-const __previewAccessResponse = await (async (settings) => {
-  const request = event.request;
-  if (request.uri.indexOf(settings.pathPrefix + "/") === 0) return undefined;
+{
+  const __previewAccess = ${settings};
+  const __previewAccessRequest = event.request;
+  const __previewAccessIsSignInPath =
+    __previewAccessRequest.uri.indexOf(__previewAccess.pathPrefix + "/") === 0;
 
-  const cookie = request.cookies[settings.cookieName];
-  const parts = cookie && cookie.value ? cookie.value.split(".") : [];
-  if (parts.length === 3 && Number(parts[0]) > Date.now() / 1000) {
-    const crypto = require("crypto");
-    const signed = settings.domain + "|" + parts[0] + "|" + parts[1];
-    for (const keyName of settings.keyNames) {
-      let key;
+  let __previewAccessIsValid = false;
+  const __previewAccessCookie = __previewAccessRequest.cookies[__previewAccess.cookieName];
+  const __previewAccessParts =
+    __previewAccessCookie && __previewAccessCookie.value ? __previewAccessCookie.value.split(".") : [];
+  const __previewAccessIsUnexpired =
+    __previewAccessParts.length === 3 && Number(__previewAccessParts[0]) > Date.now() / 1000;
+
+  if (!__previewAccessIsSignInPath && __previewAccessIsUnexpired) {
+    const __previewAccessCrypto = require("crypto");
+    const __previewAccessSigned =
+      __previewAccess.domain + "|" + __previewAccessParts[0] + "|" + __previewAccessParts[1];
+    const __previewAccessSignature = __previewAccessParts[2];
+    for (let i = 0; i < __previewAccess.keyNames.length && !__previewAccessIsValid; i++) {
+      let __previewAccessKey = "";
       try {
-        key = await cf.kvs().get(keyName);
+        __previewAccessKey = await cf.kvs().get(__previewAccess.keyNames[i]);
       } catch (e) {
-        continue;
+        __previewAccessKey = "";
       }
-      const expected = crypto.createHmac("sha256", key).update(signed).digest("hex");
-      let difference = expected.length === parts[2].length ? 0 : 1;
-      for (let i = 0; i < expected.length && i < parts[2].length; i++) {
-        difference |= expected.charCodeAt(i) ^ parts[2].charCodeAt(i);
+      if (__previewAccessKey) {
+        const __previewAccessExpected = __previewAccessCrypto
+          .createHmac("sha256", __previewAccessKey)
+          .update(__previewAccessSigned)
+          .digest("hex");
+        // Constant-time comparison
+        let __previewAccessDifference =
+          __previewAccessExpected.length === __previewAccessSignature.length ? 0 : 1;
+        for (let j = 0; j < __previewAccessExpected.length && j < __previewAccessSignature.length; j++) {
+          __previewAccessDifference |=
+            __previewAccessExpected.charCodeAt(j) ^ __previewAccessSignature.charCodeAt(j);
+        }
+        __previewAccessIsValid = __previewAccessDifference === 0;
       }
-      if (difference === 0) return undefined;
     }
   }
 
-  const isPageLoad = request.method === "GET" || request.method === "HEAD";
-  if (!isPageLoad) {
-    return { statusCode: 401, statusDescription: "Unauthorized" };
-  }
+  if (!__previewAccessIsSignInPath && !__previewAccessIsValid) {
+    const __previewAccessIsPageLoad =
+      __previewAccessRequest.method === "GET" || __previewAccessRequest.method === "HEAD";
+    if (!__previewAccessIsPageLoad) {
+      return { statusCode: 401, statusDescription: "Unauthorized" };
+    }
 
-  const query = Object.keys(request.querystring)
-    .map((name) => {
-      const parameter = request.querystring[name];
+    const __previewAccessQuery = [];
+    for (let name in __previewAccessRequest.querystring) {
+      const parameter = __previewAccessRequest.querystring[name];
       const values = parameter.multiValue ? parameter.multiValue : [parameter];
-      return values
-        .map((value) => (value.value === "" ? name : name + "=" + value.value))
-        .join("&");
-    })
-    .join("&");
-  const returnTo = request.uri + (query ? "?" + query : "");
-  return {
-    statusCode: 302,
-    statusDescription: "Found",
-    headers: {
-      location: { value: settings.pathPrefix + "/login?return=" + encodeURIComponent(returnTo) },
-      "cache-control": { value: "no-store" },
-    },
-  };
-})(${settings});
-if (__previewAccessResponse) return __previewAccessResponse;
+      for (let k = 0; k < values.length; k++) {
+        __previewAccessQuery.push(values[k].value === "" ? name : name + "=" + values[k].value);
+      }
+    }
+    const __previewAccessReturnTo =
+      __previewAccessRequest.uri +
+      (__previewAccessQuery.length > 0 ? "?" + __previewAccessQuery.join("&") : "");
+    return {
+      statusCode: 302,
+      statusDescription: "Found",
+      headers: {
+        location: {
+          value:
+            __previewAccess.pathPrefix + "/login?return=" + encodeURIComponent(__previewAccessReturnTo),
+        },
+        "cache-control": { value: "no-store" },
+      },
+    };
+  }
+}
 `;
 }
 
