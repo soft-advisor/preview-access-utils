@@ -1,6 +1,6 @@
 {
   "name": "@soft-advisor/preview-access",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "description": "Protect CloudFront-served sites (e.g. preview and staging environments) behind an OpenID Connect sign-in such as Amazon Cognito, without changing the app",
   "license": "MIT",
   "type": "module",
