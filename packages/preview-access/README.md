@@ -90,6 +90,10 @@ Associate the viewer-request function with every cache behavior except `access.c
 
 Store a random signing key (e.g. 32 random bytes, hex) in the KeyValueStore under `preview-access:signing-key`, and give the same value to the Lambda as `PREVIEW_ACCESS_SIGNING_KEY`. Serve the Lambda through a function URL with `AWS_IAM` auth and CloudFront origin access control.
 
+### Automated checks
+
+A job that can read the KeyValueStore, such as a post-deploy check, can sign its own session instead of signing in: read the key named `DEFAULT_SIGNING_KEY_NAME`, then send `signSession(key, domain, subject, expiresAt)` as the `DEFAULT_COOKIE_NAME` cookie. Keep the expiry to minutes, and keep the key and cookie out of logs: anyone holding the key can sign in as anyone.
+
 ## `createPreviewAccess` options
 
 | Option                                   | Default                              |                                               |
